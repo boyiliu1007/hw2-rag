@@ -1,0 +1,8 @@
+# data collection
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+pdfplumber>=0.11
+pypdf>=4.0
+pyyaml>=6.0
+tqdm>=4.66

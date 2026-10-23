@@ -1,0 +1,349 @@
+# Knowledge-resource sources, grouped by topic (mirrors the HW2 handout list).
+#
+# type:
+#   crawl      BFS over HTML (+ linked PDFs) from `seeds`
+#   files      download exact URLs (PDFs)
+#   wikipedia  MediaWiki API plaintext for `titles`
+#   events     structured event feed handled by events.py (`parser` selects which)
+# fetch: live | wayback | auto   (auto = live, Wayback Machine on 403/404/410)
+# allow / deny: regexes matched against the absolute URL (allow defaults to same-domain)
+
+defaults:
+  max_depth: 2
+  max_pages: 150
+  fetch: auto
+  follow_pdfs: false
+  deny:
+    - '\.(jpg|jpeg|png|gif|svg|webp|avif|mp4|mp3|zip|ics|css|js|xml)(\?|$)'
+    - '[?&](oc_lang|share|replytocom|print|format|tribe-bar-date|ical)='
+    - '/(login|signin|sign-in|account|cart|checkout|wp-admin|wp-login|feed|tag|author)/'
+    - '/(page|p)/\d{2,}'       # deep pagination
+    - '\?.*(sort|filter|view)='
+
+sources:
+  # ---------------- General info & history ----------------
+  - name: wikipedia
+    topic: general
+    type: wikipedia
+    titles:
+      # city & history
+      - Pittsburgh
+      - History of Pittsburgh
+      - Timeline of Pittsburgh
+      - Culture of Pittsburgh
+      - Economy of Pittsburgh
+      - Neighborhoods of Pittsburgh
+      - List of mayors of Pittsburgh
+      - Pittsburgh City Council
+      - Pittsburghese
+      - Allegheny County, Pennsylvania
+      - Golden Triangle (Pittsburgh)
+      - Point State Park
+      - Fort Pitt (Pennsylvania)
+      - Fort Duquesne
+      - William Pitt, 1st Earl of Chatham
+      - Whiskey Rebellion
+      - Homestead strike
+      - Johnstown Flood
+      - Andrew Carnegie
+      - Andrew Mellon
+      - Henry Clay Frick
+      - H. J. Heinz
+      - Fred Rogers
+      - Duquesne Incline
+      - Monongahela Incline
+      - Strip District, Pittsburgh
+      - Primanti Brothers
+      - Pittsburgh Regional Transit
+      - Pittsburgh International Airport
+      - Bridges of Pittsburgh
+      - Allegheny River
+      - Monongahela River
+      - Ohio River
+      - Cathedral of Learning
+      - University of Pittsburgh
+      - Phipps Conservatory and Botanical Gardens
+      - Pittsburgh Zoo & Aquarium
+      - Kennywood
+      - National Aviary
+      - Anthrocon
+      - Three Rivers Arts Festival
+      - Pittsburgh Marathon
+      - Light Up Night
+      # CMU
+      - Carnegie Mellon University
+      - Carnegie Institute of Technology
+      - Mellon Institute of Industrial Research
+      - Carnegie Mellon School of Computer Science
+      - Robotics Institute
+      - Carnegie Mellon Tartans
+      - Spring Carnival
+      - Carnegie Mellon University traditions
+      - Schenley Park
+      - Kiltie Band
+      - Randy Pausch
+      - International Conference on Machine Learning
+      - List of Carnegie Mellon University people
+      - Software Engineering Institute
+      - Tepper School of Business
+      - Heinz College
+      - Carnegie Mellon College of Fine Arts
+      # music & culture
+      - Pittsburgh Symphony Orchestra
+      - Heinz Hall for the Performing Arts
+      - Pittsburgh Opera
+      - Pittsburgh Cultural Trust
+      - Benedum Center
+      - Byham Theater
+      - Cultural District, Pittsburgh
+      - Pittsburgh Ballet Theatre
+      - Pittsburgh Public Theater
+      - August Wilson African American Cultural Center
+      - Carnegie Museums of Pittsburgh
+      - Carnegie Museum of Art
+      - Carnegie Museum of Natural History
+      - Kamin Science Center
+      - The Andy Warhol Museum
+      - Carnegie Library of Pittsburgh
+      - Senator John Heinz History Center
+      - The Frick Pittsburgh
+      - Mattress Factory
+      - Children's Museum of Pittsburgh
+      - List of museums in Pittsburgh
+      - Soldiers and Sailors Memorial Hall and Museum
+      # food
+      - Picklesburgh
+      - Banana split
+      - Pierogi
+      - Cuisine of Pittsburgh
+      # sports
+      - Sports in Pittsburgh
+      - Pittsburgh Steelers
+      - History of the Pittsburgh Steelers
+      - Pittsburgh Penguins
+      - List of Pittsburgh Penguins seasons
+      - Pittsburgh Pirates
+      - History of the Pittsburgh Pirates
+      - Pittsburgh Riverhounds SC
+      - Pittsburgh Panthers
+      - Acrisure Stadium
+      - PNC Park
+      - PPG Paints Arena
+      - Three Rivers Stadium
+      - Forbes Field
+      - Immaculate Reception
+      - Terrible Towel
+      - Great Pierogy Race
+      - List of Pittsburgh Pirates seasons
+      - List of Pittsburgh Steelers seasons
+
+  - name: britannica
+    topic: general
+    type: crawl
+    fetch: wayback
+    seeds: [https://www.britannica.com/place/Pittsburgh]
+    max_depth: 0
+
+  - name: pittsburghpa_gov
+    topic: general
+    type: crawl
+    fetch: wayback   # live site is behind Akamai bot protection (HTTP 403)
+    seeds:
+      - https://www.pittsburghpa.gov/Home
+      - https://www.pittsburghpa.gov/City-Government/Finance-Budget/Taxes
+      - https://www.pittsburghpa.gov/City-Government/Finance-Budget/Management-Budget
+    allow: ['pittsburghpa\.gov/(Home|City-Government|Resident-Services|Recreation-Events|Explore|News)']
+    max_depth: 2
+    max_pages: 120
+    delay: 2.0
+
+  - name: city_tax_regulations
+    topic: general
+    type: files
+    fetch: wayback
+    urls:
+      - https://www.pittsburghpa.gov/files/assets/city/v/1/finance/documents/tax-forms/9622_amusement_tax_regulations.pdf
+      - https://www.pittsburghpa.gov/files/assets/city/v/1/finance/documents/tax-forms/9623_isp_tax_regulations.pdf
+      - https://www.pittsburghpa.gov/files/assets/city/v/1/finance/documents/tax-forms/9624_local_services_tax_regulations.pdf
+      - https://www.pittsburghpa.gov/files/assets/city/v/1/finance/documents/tax-forms/9625_parking_tax_regulations.pdf
+      - https://www.pittsburghpa.gov/files/assets/city/v/1/finance/documents/tax-forms/9626_payroll_tax_regulations.pdf
+      - https://www.pittsburghpa.gov/files/assets/city/v/1/finance/documents/tax-forms/taxpayers-bill-of-rights-rev.-12.2025.pdf
+      - https://www.pittsburghpa.gov/files/assets/city/v/1/finance/documents/tax-forms/16958_2022_tax_rate_by_tax_type.pdf
+      - https://www.pittsburghpa.gov/files/assets/city/v/1/finance/documents/tax-forms/16957_2022_tax_due_date_calendar_.pdf
+
+  - name: city_operating_budget
+    topic: general
+    type: files
+    fetch: wayback
+    urls:
+      - https://www.pittsburghpa.gov/files/assets/city/v/4/ochamps/omb/documents/operating-budgets/2025-operating-budget.pdf
+
+  - name: visitpittsburgh
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: general
+    type: crawl
+    seeds:
+      - https://www.visitpittsburgh.com/
+      - https://www.visitpittsburgh.com/things-to-do/
+      - https://www.visitpittsburgh.com/events-festivals/
+      - https://www.visitpittsburgh.com/events-festivals/food-festivals/
+      - https://www.visitpittsburgh.com/things-to-do/pittsburgh-sports-teams/
+      - https://www.visitpittsburgh.com/things-to-do/arts-culture/
+      - https://www.visitpittsburgh.com/restaurants-culinary/
+      - https://www.visitpittsburgh.com/about-us/
+    allow: ['visitpittsburgh\.com/(things-to-do|events-festivals|restaurants-culinary|about-us|neighborhoods|blog|plan-your-trip)']
+    deny: ['/directory/', '/event/[^/]+/\d+/?$', '/listing/']
+    max_depth: 2
+    max_pages: 400
+
+  - name: cmu_about
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: cmu
+    type: crawl
+    seeds:
+      - https://www.cmu.edu/about/
+      - https://www.cmu.edu/about/history.html
+      - https://www.cmu.edu/about/traditions.html
+      - https://www.cmu.edu/about/rankings.html
+      - https://www.cmu.edu/about/awards.html
+      - https://www.cmu.edu/about/mission.html
+      - https://www.cmu.edu/leadership/
+    allow: ['cmu\.edu/(about|leadership|history|traditions)']
+    max_depth: 2
+    max_pages: 80
+
+  # ---------------- Events ----------------
+  - name: pittsburgh_events
+    topic: events
+    type: events
+    parser: pittsburgh_events   # sitemap -> every page -> schema.org Event JSON-LD
+
+  - name: downtown_events
+    topic: events
+    type: events
+    parser: downtown_pittsburgh  # WordPress vibemap REST API
+
+  - name: cmu_events
+    topic: events
+    type: events
+    parser: cmu_livewhale        # events.cmu.edu LiveWhale JSON API
+    start: '2026-10-01'
+    end: '2027-08-31'
+
+  - name: cmu_campus_events
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: events
+    type: crawl
+    seeds:
+      - https://www.cmu.edu/engage/events
+      - https://www.cmu.edu/engage/alumni/events/campus/index.html
+    allow: ['cmu\.edu/engage/(events|alumni/events)']
+    max_depth: 2
+    max_pages: 60
+
+  - name: citypaper_events
+    topic: events
+    type: crawl
+    fetch: wayback   # live site returns 403/410 to scripts
+    seeds:
+      - https://www.pghcitypaper.com/pittsburgh/EventSearch
+      - https://www.pghcitypaper.com/pittsburgh/EventSearch?v=d
+    allow: ['pghcitypaper\.com/pittsburgh/(EventSearch|event-)']
+    max_depth: 1
+    max_pages: 60
+
+  # ---------------- Music & culture ----------------
+  - name: pittsburgh_symphony
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: culture
+    type: crawl
+    seeds: [https://www.pittsburghsymphony.org/]
+    deny: ['/(tickets?|cart|donate|give|account)/', '/pso_home/web/(cart|account)']
+    max_pages: 200
+
+  - name: pittsburgh_opera
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: culture
+    type: crawl
+    seeds: [https://pittsburghopera.org/]
+    max_pages: 150
+
+  - name: cultural_trust
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: culture
+    type: crawl
+    seeds: [https://trustarts.org/]
+    deny: ['/(tickets|cart|donate|account|calendar/\d{4})']
+    max_pages: 250
+
+  - name: carnegie_museums
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: culture
+    type: crawl
+    seeds: [https://carnegiemuseums.org/]
+    max_pages: 150
+
+  - name: heinz_history_center
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: culture
+    type: crawl
+    seeds: [https://www.heinzhistorycenter.org/]
+    max_pages: 150
+
+  - name: the_frick
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: culture
+    type: crawl
+    seeds: [https://www.thefrickpittsburgh.org/]
+    max_pages: 120
+
+  # ---------------- Food festivals ----------------
+  - name: food_festivals
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: food
+    type: crawl
+    seeds:
+      - https://www.picklesburgh.com/
+      - https://www.pghtacofest.com/
+      - https://pittsburghrestaurantweek.com/
+      - https://littleitalydays.com/
+      - https://bananasplitfest.com/
+    max_depth: 2
+    max_pages: 40   # per seed domain
+
+  # ---------------- Sports ----------------
+  - name: pirates
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: sports
+    type: crawl
+    seeds:
+      - https://www.mlb.com/pirates
+      - https://www.mlb.com/pirates/history
+      - https://www.mlb.com/pirates/ballpark
+    allow: ['mlb\.com/pirates/(history|ballpark|community|fans|tickets/promotions|team)']
+    max_depth: 1
+    max_pages: 60
+
+  - name: steelers
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: sports
+    type: crawl
+    seeds:
+      - https://www.steelers.com/
+      - https://www.steelers.com/history/
+      - https://www.steelers.com/schedule/
+    allow: ['steelers\.com/(history|schedule|team|stadium|community|fans)']
+    max_depth: 1
+    max_pages: 60
+
+  - name: penguins
+    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    topic: sports
+    type: crawl
+    seeds:
+      - https://www.nhl.com/penguins/
+      - https://www.nhl.com/penguins/schedule
+      - https://www.nhl.com/penguins/team/history
+    allow: ['nhl\.com/penguins/(team|schedule|arena|community|fans|history)']
+    max_depth: 1
+    max_pages: 60
