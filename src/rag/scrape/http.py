@@ -10,7 +10,7 @@ UA = (
     "(KHTML, like Gecko) Chrome/129.0 Safari/537.36"
 )
 WAYBACK = "https://web.archive.org/web/2026id_/"  # id_ = original bytes, no toolbar
-BOT_UA = "CMU-11711-HW2-RAG/0.1 (student coursework; python-requests)"
+BOT_UA = "CMU-11711-HW2-RAG/0.1 (https://github.com/boyiliu1007/hw2-rag; student coursework; python-requests)"
 # Wayback throttles hard (~15 req/min) and each fetch is a redirect + the page
 DOMAIN_DELAY = {"web.archive.org": 6.0}
 # These answer HTTP 429 to a browser-style header set; they expect an honest bot UA
@@ -76,14 +76,15 @@ class Fetcher:
         return None
 
     def get_with_fallback(self, url, mode="auto"):
-        """mode: 'live' | 'wayback' | 'auto' (live, then Wayback on 403/404/410/error).
+        """mode: 'live' | 'wayback' | 'auto' (live, then Wayback on 202/403/404/410/error).
 
         Returns (response, used_wayback).
         """
         if mode == "wayback":
             return self.get(url, wayback=True), True
         r = self.get(url) if self.allowed(url) else None
-        if mode == "auto" and (r is None or r.status_code in (403, 404, 410, 451)):
+        # 202 with an empty body is a bot challenge (e.g. AWS WAF), not content
+        if mode == "auto" and (r is None or r.status_code in (202, 403, 404, 410, 451)):
             wb = self.get(url, wayback=True)
             if wb is not None and wb.status_code == 200:
                 return wb, True

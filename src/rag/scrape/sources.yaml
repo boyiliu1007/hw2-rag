@@ -136,6 +136,69 @@ sources:
       - Great Pierogy Race
       - List of Pittsburgh Pirates seasons
       - List of Pittsburgh Steelers seasons
+    # every article in these categories (depth = levels of subcategories to follow)
+    categories:
+      - {name: Museums in Pittsburgh, depth: 1}
+      - {name: Bridges in Pittsburgh}
+      - {name: Neighborhoods in Pittsburgh}
+      - {name: Downtown Pittsburgh}
+      - {name: Universities and colleges in Pittsburgh}
+      - {name: Carnegie Mellon University}
+      - {name: Sports venues in Pittsburgh, depth: 1}
+      - {name: Festivals in Pittsburgh}
+      - {name: Parks in Pittsburgh, depth: 1}
+      - {name: Theatres in Pittsburgh}
+      - {name: Music venues in Pittsburgh}
+      - {name: Culture of Pittsburgh}
+      - {name: History of Pittsburgh}
+      - {name: Buildings and structures in Pittsburgh}
+      - {name: Tourist attractions in Pittsburgh}
+      - {name: Companies based in Pittsburgh, limit: 120}
+      - {name: Robert Morris Colonials, depth: 1}
+      - {name: Duquesne Dukes, depth: 1}
+      - {name: Mayors of Pittsburgh}
+      - {name: Streets in Pittsburgh}
+      - {name: National Register of Historic Places in Pittsburgh}
+      - {name: City of Pittsburgh historic designations}
+      - {name: Historic districts in Pittsburgh}
+    players: true   # current-roster articles, names from datasets.py (sports)
+    # Articles linked from the hand-picked `titles` above whose (visible) Wikipedia categories
+    # mention the region; lead section only, so the long tail adds breadth, not bulk.
+    linked:
+      category_pattern: 'Pittsburgh|Allegheny County|Carnegie Mellon'
+      max: 5000
+    delay: 2.0      # Wikimedia rate-limits anonymous API clients sharing an IP
+
+  # ---------------- Structured datasets / APIs (datasets.py) ----------------
+  - name: cmoa
+    topic: culture
+    type: dataset
+    parser: cmoa
+    # Carnegie Museum of Art open collection data (CC0, 2017 release). The museum removed
+    # github.com/cmoa/collection; this is an unmodified fork of it.
+    url: https://raw.githubusercontent.com/roll/collection/master/cmoa.csv
+
+  - name: millage
+    topic: general
+    type: dataset
+    parser: millage
+    years: [2026, 2025]
+
+  - name: sports
+    topic: sports
+    type: dataset
+    parser: sports
+    nhl_season: '20262027'
+    espn_teams:   # ESPN site API schedules; seasons are ESPN's season labels
+      - {name: Pittsburgh Steelers, id: 23, sport: football/nfl, league: NFL, seasons: [2026]}
+      - {name: Pittsburgh Panthers football, id: 221, sport: football/college-football, league: college football, seasons: [2026]}
+      - {name: Duquesne Dukes football, id: 2184, sport: football/college-football, league: college football, seasons: [2026]}
+      - {name: Robert Morris Colonials football, id: 2523, sport: football/college-football, league: college football, seasons: [2026]}
+      - {name: Pittsburgh Panthers men's basketball, id: 221, sport: basketball/mens-college-basketball, league: men's college basketball, seasons: [2027]}
+      - {name: Duquesne Dukes men's basketball, id: 2184, sport: basketball/mens-college-basketball, league: men's college basketball, seasons: [2027]}
+      - {name: Robert Morris Colonials men's basketball, id: 2523, sport: basketball/mens-college-basketball, league: men's college basketball, seasons: [2027]}
+    espn_rosters:
+      - {name: Pittsburgh Steelers, id: 23, sport: football/nfl, wiki_hint: American football}
 
   - name: britannica
     topic: general
@@ -193,8 +256,8 @@ sources:
       - https://www.visitpittsburgh.com/about-us/
     allow: ['visitpittsburgh\.com/(things-to-do|events-festivals|restaurants-culinary|about-us|neighborhoods|blog|plan-your-trip)']
     deny: ['/directory/', '/event/[^/]+/\d+/?$', '/listing/']
-    max_depth: 2
-    max_pages: 400
+    max_depth: 3
+    max_pages: 1500
 
   - name: cmu_about
     fetch: live   # live site works; Wayback fallback is too slow for a whole site
@@ -212,6 +275,23 @@ sources:
     max_depth: 2
     max_pages: 80
 
+  - name: cmu_site   # beyond /about: schools, arts/music concerts, campus life, traditions, homecoming
+    fetch: live
+    topic: cmu
+    type: crawl
+    seeds:
+      - https://www.cmu.edu/
+      - https://www.cmu.edu/cfa/music/concerts-events/index.html
+      - https://www.cmu.edu/engage/events/homecoming
+      - https://www.cmu.edu/student-affairs/
+      - https://www.cmu.edu/academics/
+      - https://www.cmu.edu/research/
+      - https://www.cmu.edu/campus/
+    allow: ['^https://www\.cmu\.edu/']
+    deny: ['/news/stories/archives/20(0\d|1\d|2[0-3])/', '/(directory|search|apply|give|login)(/|$)', '\.(pdf|docx?|pptx?)$']
+    max_depth: 3
+    max_pages: 1500
+
   # ---------------- Events ----------------
   - name: pittsburgh_events
     topic: events
@@ -227,6 +307,13 @@ sources:
     topic: events
     type: events
     parser: cmu_livewhale        # events.cmu.edu LiveWhale JSON API
+    start: '2026-10-01'
+    end: '2027-08-31'
+
+  - name: pitt_events
+    topic: events
+    type: events
+    parser: pitt_localist        # calendar.pitt.edu Localist API v2
     start: '2026-10-01'
     end: '2027-08-31'
 
@@ -254,10 +341,11 @@ sources:
 
   # ---------------- Music & culture ----------------
   - name: pittsburgh_symphony
-    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    fetch: auto   # concert pages (/production/) sit behind DataDome bot protection -> Wayback copy
     topic: culture
     type: crawl
-    seeds: [https://www.pittsburghsymphony.org/]
+    seeds: [https://www.pittsburghsymphony.org/, https://www.pittsburghsymphony.org/calendar]
+    delay: 3.0
     deny: ['/(tickets?|cart|donate|give|account)/', '/pso_home/web/(cart|account)']
     max_pages: 200
 
@@ -284,7 +372,8 @@ sources:
     max_pages: 150
 
   - name: heinz_history_center
-    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    fetch: auto   # Cloudflare returns 403 to scripts beyond the homepage -> Wayback copy
+    delay: 3.0
     topic: culture
     type: crawl
     seeds: [https://www.heinzhistorycenter.org/]
@@ -347,3 +436,99 @@ sources:
     allow: ['nhl\.com/penguins/(team|schedule|arena|community|fans|history)']
     max_depth: 1
     max_pages: 60
+
+  # ---------------- Gap fill: college athletics ----------------
+  - name: college_athletics
+    fetch: auto   # PrestoSports sites (CMU, Carlow) answer scripts with a 202 bot challenge
+    topic: sports
+    type: crawl
+    seeds:
+      - https://rmucolonials.com/
+      - https://rmucolonials.com/sports/football/schedule
+      - https://rmucolonials.com/sports/mens-basketball/schedule
+      - https://goduquesne.com/
+      - https://goduquesne.com/sports/football/schedule
+      - https://goduquesne.com/sports/mens-basketball/schedule
+      - https://pittsburghpanthers.com/
+      - https://gochathamcougars.com/
+      - https://pointparksports.com/
+      - https://athletics.cmu.edu/
+      - https://athletics.carlow.edu/
+    allow:   # Sidearm sites (schedule/roster pages per sport) and PrestoSports sites (season pages)
+      - '^https?://(www\.)?(rmucolonials|goduquesne|pittsburghpanthers|gochathamcougars|pointparksports)\.com/(sports/[^/]+/(schedule|roster|coaches)(/20\d\d(-\d\d)?)?$|staff-directory|sports/[^/]+/?$|sports/[^/]+/(history|records))'
+      - '^https?://(athletics\.cmu\.edu|athletics\.carlow\.edu)/(landing/index|sports/[^/]+/(index|20\d\d-\d\d/(schedule|roster|coaches))|sports/[^/]+/?$)'
+    # Sidearm builds its sport menus with JavaScript; its sitemaps list every schedule/roster page
+    sitemaps:
+      - https://admin.pittsburghpanthers.com/sitemap.xml
+      - https://rmucolonials.com/sitemap.xml
+      - https://goduquesne.com/sitemap.xml
+    sitemap_index_filter: 'sitemap_(schedule|roster)_'
+    sitemap_filter: '/sports/[^/]+/(schedule|roster)/(2026|2026-27|2027)$'
+    deny: ['/(print|ical|stats|news)/', '/(schedule|roster)/20(0\d|1\d|2[0-5])', '/roster/(coaches|staff)/', '/roster/[^/]+/\d+']
+    max_depth: 2
+    max_pages: 150   # per seed domain
+
+  # ---------------- Gap fill: venues, museums, theaters ----------------
+  # Two rules, both fixed before checking which dev questions they would cover:
+  #  (a) official sites of venues hosting >= 10 events in the event feeds (pittsburgh.events,
+  #      Downtown, CMU), excluding venues already covered by a handout source (Cultural Trust
+  #      theaters, Heinz Hall, stadiums), CMU campus rooms, and sites that did not respond;
+  #  (b) Pittsburgh museums/attractions/theaters not reached by the handout crawls.
+  - name: venues_culture
+    fetch: auto   # some sites block this network (Quantum Theatre, Public Theater, City Theatre) -> Wayback
+    topic: culture
+    type: crawl
+    seeds:
+      # (a) event venues
+      - https://arcadecomedytheater.com/
+      - https://kaminsciencecenter.org/
+      - https://improv.com/pittsburgh/
+      - https://citywinery.com/pages/locations/pittsburgh
+      - https://www.steelcitycellar.com/
+      - https://www.citizensliveatthewylie.com/
+      - https://www.roxiantheatre.com/
+      - https://www.preservingconcerts.com/
+      - https://crafthousepgh.com/
+      - https://librarymusichall.com/
+      - https://promowestlive.com/pittsburgh/stage-ae
+      - https://thunderbirdmusichall.com/
+      - https://mrsmalls.com/
+      - https://www.ppt.org/
+      - https://playhouse.pointpark.edu/
+      - https://www.clubcafelive.com/
+      - https://www.bottlerocketpgh.com/
+      - https://cityofasylum.org/
+      # (b) museums, attractions, theaters
+      - https://quantumtheatre.com/
+      - https://www.citytheatrecompany.org/
+      - https://www.huntbotanical.org/
+      - https://pvgp.org/
+      - https://www.clementemuseum.com/
+      - https://www.photoantiquities.org/
+      - https://www.pittsburghzoo.org/
+      - https://www.phipps.conservatory.org/
+      - https://www.mattress.org/
+      - https://carnegiemnh.org/
+      - https://www.warhol.org/
+      - https://www.aviary.org/
+    deny: ['/(tickets?|cart|checkout|donate|give|shop|store|membership|my-account|calendar/\d{4})(/|$)', '\?(date|month|ical)',
+           'promowestlive\.com/(?!pittsburgh)', 'citywinery\.com/(?!pages/locations/pittsburgh|pittsburgh)',
+           'improv\.com/(?!pittsburgh)']
+    max_depth: 3
+    max_pages: 80   # per seed domain
+
+  - name: nextpittsburgh_events
+    fetch: live
+    topic: events
+    type: crawl
+    seeds: [https://nextpittsburgh.com/events/]
+    allow: ['nextpittsburgh\.com/events/']
+    max_depth: 2
+    max_pages: 150
+
+  - name: county_budget
+    topic: general
+    type: files
+    fetch: auto   # alleghenycounty.us returns 403 to scripts -> Wayback copy
+    urls:
+      - https://www.alleghenycounty.us/files/assets/county/v/3/government/budget-amp-finance/proposed-operating-budgets/2026-proposed-comprehensive-fiscal-plan.pdf

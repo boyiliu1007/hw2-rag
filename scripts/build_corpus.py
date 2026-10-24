@@ -22,6 +22,7 @@ from tqdm import tqdm
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from src.rag.scrape.crawl import _domain, load_sources, normalize_url  # noqa: E402
 from src.rag.scrape.events import MIN_DATE, _ld_names, _ld_place, event_doc  # noqa: E402
 from src.rag.scrape.html_clean import extract_jsonld_events, html_to_text  # noqa: E402
 from src.rag.scrape.pdf_extract import pdf_to_text  # noqa: E402
@@ -48,7 +49,8 @@ def strip_site_boilerplate(docs):
         for d in group:
             freq.update({ln.strip() for ln in d["text"].split("\n") if ln.strip()})
         thresh = max(3, BOILER_FRAC * len(group))
-        common = {ln for ln, c in freq.items() if c >= thresh and not ln.startswith("#")}
+        common = {ln for ln, c in freq.items()
+                  if c >= thresh and not ln.startswith(("#", "Social media:"))}
         for d in group:
             d["text"] = re.sub(r"\n{3,}", "\n\n", "\n".join(
                 ln for ln in d["text"].split("\n") if ln.strip() not in common)).strip()
@@ -69,12 +71,44 @@ def jsonld_event_docs(html, source, page_url):
     return docs
 
 
+def configured_sites():
+    """source name -> (domains, file URLs, allow, deny, seeds) for crawl/files sources in sources.yaml."""
+    sites = {}
+    for s in load_sources():
+        if s["type"] in ("crawl", "files"):
+            sites[s["name"]] = ({_domain(u) for u in s.get("seeds", [])},
+                                {normalize_url(u) for u in s.get("urls", [])},
+                                [re.compile(p) for p in s.get("allow", [])],
+                                [re.compile(p) for p in s.get("deny", [])],
+                                {normalize_url(u) for u in s.get("seeds", [])})
+    return sites
+
+
+def in_config(url, site):
+    domains, files, allow, deny, seeds = site
+    if url in files or url in seeds:
+        return True
+    if _domain(url) not in domains or any(d.search(url) for d in deny):
+        return False
+    return not allow or any(a.search(url) for a in allow)
+
+
 def from_manifest():
-    recs = {}
+    """Raw pages, restricted to sites still configured, so removing a seed or source from
+    sources.yaml also removes its previously crawled pages from the corpus."""
+    recs, sites, dropped = {}, configured_sites(), Counter()
+    if not (RAW / "manifest.jsonl").exists():
+        return []
     for line in (RAW / "manifest.jsonl").open():
         r = json.loads(line)
-        if r.get("path"):
+        if not r.get("path"):
+            continue
+        if r["source"] in sites and in_config(r["url"], sites[r["source"]]):
             recs[r["url"]] = r
+        else:
+            dropped[r["source"]] += 1
+    if dropped:
+        print(f"raw pages no longer in sources.yaml (skipped): {dict(dropped)}")
     pages, events = [], []
     for r in tqdm(recs.values(), desc="raw pages"):
         path = ROOT / r["path"]
@@ -147,9 +181,24 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--baseline", type=Path, default=ROOT / "data" / "baseline")
     ap.add_argument("--out", type=Path, default=PROC / "docs.jsonl")
+    ap.add_argument("--no-carry", action="store_true",
+                    help="do not keep previous-corpus docs for sources missing from this build")
     args = ap.parse_args()
 
     docs = from_sources() + from_manifest() + from_baseline(args.baseline)
+    # The raw crawl cache is not committed, so on a machine that lacks it, keep the previous
+    # corpus's documents for every source this run could not rebuild.
+    built = {d["source"] for d in docs}
+    configured = {s["name"] for s in load_sources()}
+    carried = Counter()
+    if args.out.exists() and not args.no_carry:
+        for line in args.out.open():
+            d = json.loads(line)
+            if d["source"] not in built and d["source"] in configured:
+                docs.append(d)
+                carried[d["source"]] += 1
+    if carried:
+        print(f"carried over from previous {args.out.name}: {dict(carried)}")
     kept, seen, dropped = [], set(), Counter()
     for d in docs:
         is_event = "\nEvent: " in d["text"]
@@ -168,7 +217,7 @@ def main():
         for d in kept:
             f.write(json.dumps(d, ensure_ascii=False) + "\n")
 
-    print(f"\nwrote {len(kept)} docs -> {args.out.relative_to(ROOT)}  (dropped: {dict(dropped)})")
+    print(f"\nwrote {len(kept)} docs -> {args.out}  (dropped: {dict(dropped)})")
     stats = defaultdict(lambda: [0, 0])
     for d in kept:
         stats[(d["topic"], d["source"])][0] += 1

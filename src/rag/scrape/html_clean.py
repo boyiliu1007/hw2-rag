@@ -158,6 +158,7 @@ def html_to_text(html, url=""):
     if og and og.get("content"):
         title = og["content"].strip()
 
+    social = social_links(soup) if re.search(r"^https?://[^/]+/?$|/(contact|about)", url or "", re.I) else ""
     for t in soup(DROP_TAGS):
         t.decompose()
     for c in soup.find_all(string=lambda s: isinstance(s, Comment)):
@@ -185,4 +186,30 @@ def html_to_text(html, url=""):
     out = []
     _walk(root, out)
     text = dedupe_lines(normalize_ws("".join(out)))
+    if social:
+        text += "\n\n" + social
     return title, text
+
+
+SOCIAL = re.compile(r"^https?://(?:www\.)?(instagram|facebook|x|twitter|tiktok|youtube|linkedin)\.com/"
+                    r"(?!sharer|share|intent|dialog|plugins|home)(@?[\w.\-]+(?:/[\w.\-]+)?)/?(?:\?.*)?$", re.I)
+SOCIAL_NAMES = {"instagram": "Instagram", "facebook": "Facebook", "x": "X (Twitter)", "twitter": "X (Twitter)",
+                "tiktok": "TikTok", "youtube": "YouTube", "linkedin": "LinkedIn"}
+
+
+def social_links(soup):
+    """Social-media accounts linked from the page (usually only in the footer, which is dropped).
+    Kept for homepages/contact/about pages so questions like "What is X's Instagram handle?" can
+    be answered."""
+    found = {}
+    for a in soup.find_all("a", href=True):
+        m = SOCIAL.match(a["href"].strip())
+        if m:
+            net, segs = SOCIAL_NAMES[m.group(1).lower()], m.group(2).split("/")
+            # youtube.com/user/<name>, linkedin.com/company/<name>: the account is the 2nd segment
+            handle = segs[1] if segs[0].lower() in ("user", "channel", "c", "company", "school", "pages") \
+                and len(segs) > 1 else segs[0]
+            if handle.lower() in ("p", "reel", "watch", "events", "wix", "user", "channel", "company"):
+                continue  # posts, or the site builder's own accounts in a template footer
+            found.setdefault(net, f"@{handle.lstrip('@')} ({m.group(0).split('?')[0]})")
+    return ("Social media: " + "; ".join(f"{k} {v}" for k, v in found.items())) if found else ""

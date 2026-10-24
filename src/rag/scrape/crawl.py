@@ -126,7 +126,28 @@ def _domain(url):
     return urlparse(url).netloc.removeprefix("www.")
 
 
+def sitemap_urls(src, fetcher):
+    """Extra seeds from `sitemaps` (sitemap or sitemap-index URLs), keeping locs that match
+    `sitemap_filter`. Used where navigation is built by JavaScript, so links are not in the HTML."""
+    rx = re.compile(src.get("sitemap_filter", "."))
+    todo, out = list(src.get("sitemaps", [])), []
+    while todo:
+        r = fetcher.get(todo.pop(0))
+        if r is None or r.status_code != 200:
+            continue
+        locs = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", r.text)
+        if "<sitemapindex" in r.text:
+            todo += [u for u in locs if re.search(src.get("sitemap_index_filter", "."), u)]
+        else:
+            out += [normalize_url(u) for u in locs if rx.search(u)]
+    return list(dict.fromkeys(u for u in out if u))
+
+
 def crawl_source(src, fetcher, seen):
+    if src.get("sitemaps"):
+        extra = sitemap_urls(src, fetcher)
+        print(f"  {len(extra)} seeds from sitemaps")
+        src = {**src, "seeds": list(src["seeds"]) + extra}
     allow = [re.compile(p) for p in src.get("allow", [])]
     deny = [re.compile(p) for p in src.get("deny", [])]
     seed_domains = {_domain(s) for s in src["seeds"]}

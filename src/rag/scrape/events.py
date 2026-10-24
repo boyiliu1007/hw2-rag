@@ -213,9 +213,44 @@ def cmu_livewhale(src, fetcher):
     return docs
 
 
+# ---------------------------------------------------------------- calendar.pitt.edu
+def pitt_localist(src, fetcher, max_instances=10):
+    """University of Pittsburgh calendar (Localist API v2); one doc per occurrence, capped so a
+    daily recurring event does not flood the corpus."""
+    raw, page = [], 1
+    while page:
+        r = fetcher.get("https://calendar.pitt.edu/api/2/events",
+                        params={"start": src["start"], "end": src["end"], "pp": 100, "page": page})
+        if r is None or r.status_code != 200:
+            break
+        d = r.json()
+        raw += [x["event"] for x in d.get("events", [])]
+        page = d.get("page", {}).get("next_page")
+    _cache(src["name"], "events.json", raw)
+    docs = []
+    for e in raw:
+        f = e.get("filters") or {}
+        types = ", ".join(t["name"] for t in f.get("event_types", []))
+        venue = ", ".join(x for x in (e.get("location_name"), e.get("room_number")) if x)
+        if e.get("experience") == "virtual" and not venue:
+            venue = "Online"
+        org = ", ".join(x["name"] for x in e.get("departments", []))
+        insts = [i["event_instance"] for i in e.get("event_instances", [])
+                 if i["event_instance"]["start"][:10] >= MIN_DATE][:max_instances]
+        for inst in insts:
+            start = inst["start"][:10] if inst.get("all_day") else inst["start"]
+            docs.append(event_doc(
+                src["name"], title=strip_html(e.get("title", "")), url=e.get("localist_url", ""),
+                start=start, end=inst.get("end"), venue=venue, address=e.get("address") or "",
+                category=types, organizer=org, price=e.get("ticket_cost") or "",
+                description=e.get("description_text") or ""))
+    return docs
+
+
 PARSERS = {"pittsburgh_events": pittsburgh_events,
            "downtown_pittsburgh": downtown_pittsburgh,
-           "cmu_livewhale": cmu_livewhale}
+           "cmu_livewhale": cmu_livewhale,
+           "pitt_localist": pitt_localist}
 
 
 def main():
