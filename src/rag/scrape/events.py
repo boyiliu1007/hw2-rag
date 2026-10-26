@@ -26,6 +26,9 @@ from .http import Fetcher
 OUT = ROOT / "data" / "processed" / "sources"
 RAW = ROOT / "data" / "raw"
 MIN_DATE = "2026-10-01"  # handout: event questions are about Oct 2026 onward
+# Sports schedules keep the whole 2026-27 season: questions about season totals, openers or
+# records ("how many games are on the 2026 schedule") need the games before October too.
+SEASON_START = "2026-07-01"
 
 
 def strip_html(s):

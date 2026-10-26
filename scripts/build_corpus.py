@@ -10,9 +10,11 @@ Output record: {doc_id, url, title, topic, source, text}
     python scripts/build_corpus.py
 """
 import argparse
+import gzip
 import hashlib
 import json
 import re
+import shutil
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -26,11 +28,16 @@ from src.rag.scrape.crawl import _domain, load_sources, normalize_url  # noqa: E
 from src.rag.scrape.events import MIN_DATE, _ld_names, _ld_place, event_doc  # noqa: E402
 from src.rag.scrape.html_clean import extract_jsonld_events, html_to_text  # noqa: E402
 from src.rag.scrape.pdf_extract import pdf_to_text  # noqa: E402
+from src.rag.scrape.schedules import parse_schedule  # noqa: E402
 
 RAW = ROOT / "data" / "raw"
 PROC = ROOT / "data" / "processed"
 MIN_CHARS = 200          # drop near-empty pages (JS shells, redirects, error pages)
 BOILER_FRAC = 0.3        # per-source line frequency above which a line is site chrome
+# Sources only available as old archive snapshots: say so in the text so a reader does not take
+# their dates for 2026 ones.
+STALE_NOTE = {"citypaper_events": "[Archived Pittsburgh City Paper listing from 2025 (Internet Archive); "
+                                  "dates refer to 2025, not 2026.]"}
 
 
 def norm_key(text):
@@ -119,6 +126,9 @@ def from_manifest():
             title = title or Path(r["url"]).stem.replace("_", " ").replace("-", " ")
         elif r["content_type"] == "html":
             html = path.read_text(errors="ignore")
+            if "/schedule" in r["url"] and (games := parse_schedule(html, r["url"], r["source"])):
+                events += games  # one doc per game replaces the schedule page text
+                continue
             title, text = html_to_text(html, r["url"])
             events += jsonld_event_docs(html, r["source"], r["url"])
         else:
@@ -199,10 +209,15 @@ def main():
                 carried[d["source"]] += 1
     if carried:
         print(f"carried over from previous {args.out.name}: {dict(carried)}")
+    for d in docs:
+        if d["source"] in STALE_NOTE and not d["text"].startswith(STALE_NOTE[d["source"]]):
+            d["text"] = f"{STALE_NOTE[d['source']]}\n{d['text']}"
+    # one-record-per-document sources (events, places, artworks, games) are short by design
+    record_sources = {s["name"] for s in load_sources() if s["type"] in ("dataset", "events")}
     kept, seen, dropped = [], set(), Counter()
     for d in docs:
-        is_event = "\nEvent: " in d["text"]
-        if len(d["text"]) < (40 if is_event else MIN_CHARS):
+        is_record = "\nEvent: " in d["text"] or d["source"] in record_sources
+        if len(d["text"]) < (40 if is_record else MIN_CHARS):
             dropped["short"] += 1
             continue
         k = norm_key(d["text"])
@@ -216,6 +231,9 @@ def main():
     with args.out.open("w") as f:
         for d in kept:
             f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    # compressed copy for git (the plain file exceeds GitHub's 100 MB limit)
+    with args.out.open("rb") as src, gzip.open(f"{args.out}.gz", "wb", compresslevel=9) as dst:
+        shutil.copyfileobj(src, dst)
 
     print(f"\nwrote {len(kept)} docs -> {args.out}  (dropped: {dict(dropped)})")
     stats = defaultdict(lambda: [0, 0])

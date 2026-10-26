@@ -42,7 +42,7 @@ If the course baseline knowledge resource is available, place it in `data/baseli
 | `dataset` | Structured data/APIs → one short doc per record (`datasets.py`) | Carnegie Museum of Art collection (28k artworks, CC0 2017 open-data release), Allegheny County municipal + school-district millage (2025–26), sports schedules from Oct 2026 (Penguins via NHL API; Steelers, Pitt, Duquesne, Robert Morris football and men's basketball via ESPN) and current Penguins/Pirates/Steelers roster bios (NHL API, MLB StatsAPI, ESPN) |
 
 Beyond the handout list, more sources were added after checking which *kinds* of dev answers
-were missing from the corpus (`scripts/coverage.py --misses`) and which topics the leaderboard
+were missing from the corpus (`scripts/answer_coverage.py --misses`) and which topics the leaderboard
 questions cover. To avoid hand-picking documents for individual dev questions, every addition
 is a whole resource or follows a fixed inclusion rule:
 
@@ -85,13 +85,14 @@ Notes
   machine keeps its documents from the previous `docs.jsonl` (`--no-carry` disables this).
 
 
-Output: `data/processed/docs.jsonl`, one `{doc_id, url, title, topic, source, text}` per line.
+Output: `data/processed/docs.jsonl`, one `{doc_id, url, title, topic, source, text}` per line. Git stores the gzip copy `docs.jsonl.gz` (the plain file exceeds GitHub's 100 MB limit); after cloning run `gunzip -k data/processed/docs.jsonl.gz`.
 
 ## Repository layout
 
 ```
 src/rag/scrape/      http.py, crawl.py, wikipedia.py, events.py, datasets.py, html_clean.py, pdf_extract.py, sources.yaml
-scripts/             scrape_all.sh, build_corpus.py, coverage.py
+scripts/             scrape_all.sh, build_corpus.py, answer_coverage.py, entity_check.py, coverage_audit.py,
+                     eval_retrieval.py, retrieval_grid.py, run_qa.py, score_run.py, error_report.py, make_submission.py, slurm/
 data/raw/            cached raw responses + manifest (gitignored)
 data/processed/      sources/*.jsonl (Wikipedia + event docs), docs.jsonl (final corpus)
 data/eval/           public_evaluation_data.json
@@ -103,3 +104,34 @@ requests, Beautiful Soup 4, lxml, pdfplumber, pypdf, PyYAML, tqdm; Wikipedia (CC
 Internet Archive Wayback Machine; Carnegie Museum of Art collection data (CC0); Allegheny
 County Treasurer millage tables; NHL, MLB StatsAPI and ESPN public JSON endpoints; the public
 websites listed in `sources.yaml`.
+
+## Running the QA system
+
+```bash
+# 1. chunk the corpus (fixed | sentence | structure) -> indexes/chunks/<strategy>.jsonl
+.venv/bin/python -m src.rag.chunking --strategy all
+# 2. indexes are built on first use (BM25 via bm25s; dense via sentence-transformers + FAISS)
+.venv/bin/python -m src.rag.retrieval.sparse --strategy fixed
+.venv/bin/python -m src.rag.retrieval.dense --model bge-base --strategy fixed
+# 3. retrieval recall@k on the public dev set, and the retriever x chunking comparison grid
+.venv/bin/python scripts/eval_retrieval.py --retriever hybrid-rrf:bge-base+ce:bge-reranker-v2-m3 --strategy fixed
+.venv/bin/python scripts/retrieval_grid.py --embedders minilm bge-base qwen3-0.6b
+# 4. end-to-end QA (needs GPUs; see scripts/slurm/qa.sbatch). Final system:
+.venv/bin/python scripts/run_qa.py --retriever hybrid-rrf:bge-base+ce:bge-reranker-v2-m3 --k 10 \
+    --reader Qwen/Qwen3-30B-A3B-Instruct-2507 --tp 2 --style restate --name dev_restate
+#    closed-book baseline: add --closed-book; other answer styles: --style short|routed|full
+# 5. scores, per-question error report, and a validated submission file
+.venv/bin/python scripts/score_run.py runs/qa/dev_restate
+.venv/bin/python scripts/error_report.py runs/qa/dev_restate      # -> runs/qa/dev_restate/error_report.md
+.venv/bin/python scripts/make_submission.py runs/qa/<run> --qa <questions.json> --out system_outputs/system_output_1.json
+```
+
+| Component | Implementation |
+|---|---|
+| Chunking | `src/rag/chunking.py`: fixed-size + overlap, sentence-aware, heading/paragraph-aware; per-record sources kept whole; title/section header on every chunk |
+| Sparse | `src/rag/retrieval/sparse.py`: bm25s (Lucene BM25, k1=1.5, b=0.75), English stopwords + Snowball stemming |
+| Dense | `src/rag/retrieval/dense.py`: sentence-transformers (all-MiniLM-L6-v2, bge-base-en-v1.5, Qwen3-Embedding-0.6B) + FAISS inner-product index |
+| Hybrid | `src/rag/retrieval/hybrid.py`: reciprocal rank fusion, min-max weighted fusion, sparse-then-dense rerank |
+| Reranker | `src/rag/retrieval/rerank.py`: cross-encoder over the top 50 (bge-reranker-v2-m3; Qwen3-Reranker compared) |
+| Reader | `src/rag/reader.py`: Qwen3-30B-A3B-Instruct-2507 via vLLM, answer styles, refusal retry + closed-book fallback |
+| Evaluation | `src/rag/evaluation.py`: SQuAD-normalized EM/F1, answer recall, ROUGE-1/2/L |

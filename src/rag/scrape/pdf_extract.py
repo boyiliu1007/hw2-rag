@@ -1,6 +1,10 @@
 """PDF -> plain text with pdfplumber (pypdf fallback), stripping running headers/footers."""
 import io
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 from collections import Counter
 
 import pdfplumber
@@ -35,6 +39,29 @@ def _table_rows(table):
     return "\n".join(rows)
 
 
+def _ocr_empty_pages(data, pages, min_chars=40):
+    """Scanned pages (images, no text layer) -> OCR with tesseract, if it is installed."""
+    empty = [i for i, p in enumerate(pages) if len(p.strip()) < min_chars]
+    if not empty or not shutil.which("tesseract"):
+        return pages
+    try:
+        import pypdfium2 as pdfium
+    except ImportError:
+        return pages
+    pages = list(pages)
+    pdf = pdfium.PdfDocument(data)
+    with tempfile.TemporaryDirectory() as tmp:
+        for i in empty:
+            if i >= len(pdf):
+                continue
+            img = os.path.join(tmp, f"p{i}.png")
+            pdf[i].render(scale=300 / 72).to_pil().save(img)  # 300 dpi
+            r = subprocess.run(["tesseract", img, "stdout", "--psm", "6"], capture_output=True, text=True)
+            if r.returncode == 0 and r.stdout.strip():
+                pages[i] = r.stdout
+    return pages
+
+
 def pdf_to_text(data: bytes, max_pages=None):
     """Return (title, text). Pages separated by blank lines."""
     pages, title = [], ""
@@ -63,6 +90,7 @@ def pdf_to_text(data: bytes, max_pages=None):
             pages = [(pg.extract_text() or "") for pg in reader.pages[:max_pages]]
         except Exception:
             pages = []
+    pages = _ocr_empty_pages(data, pages)
     pages = _strip_running_lines(pages)
     # de-hyphenate words broken across lines
     text = "\n\n".join(re.sub(r"(\w)-\n(\w)", r"\1\2", p) for p in pages)

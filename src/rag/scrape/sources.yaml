@@ -200,6 +200,19 @@ sources:
     espn_rosters:
       - {name: Pittsburgh Steelers, id: 23, sport: football/nfl, wiki_hint: American football}
 
+  - name: osm
+    topic: places
+    type: dataset
+    parser: osm
+    # every named place of these kinds in Allegheny County (OpenStreetMap, ODbL)
+    area: Allegheny County
+    admin_level: 6
+    filters:
+      shop: "."
+      amenity: "^(restaurant|cafe|bar|pub|fast_food|ice_cream|biergarten|theatre|cinema|arts_centre|nightclub|library|marketplace|events_venue|community_centre|music_venue)$"
+      tourism: "^(museum|gallery|attraction|hotel|zoo|theme_park|viewpoint|artwork)$"
+      leisure: "^(park|stadium|sports_centre|garden|nature_reserve|bowling_alley|escape_game|amusement_arcade)$"
+
   - name: britannica
     topic: general
     type: crawl
@@ -216,8 +229,8 @@ sources:
       - https://www.pittsburghpa.gov/City-Government/Finance-Budget/Taxes
       - https://www.pittsburghpa.gov/City-Government/Finance-Budget/Management-Budget
     allow: ['pittsburghpa\.gov/(Home|City-Government|Resident-Services|Recreation-Events|Explore|News)']
-    max_depth: 2
-    max_pages: 120
+    max_depth: 3
+    max_pages: 900
     delay: 2.0
 
   - name: city_tax_regulations
@@ -289,10 +302,11 @@ sources:
       - https://www.cmu.edu/campus/
     allow: ['^https://www\.cmu\.edu/']
     deny: ['/news/stories/archives/20(0\d|1\d|2[0-3])/', '/(directory|search|apply|give|login)(/|$)', '\.(pdf|docx?|pptx?)$']
-    max_depth: 3
-    max_pages: 1500
+    max_depth: 4
+    max_pages: 4000
 
   # ---------------- Events ----------------
+    sitemaps: [https://www.cmu.edu/sitemap.xml]
   - name: pittsburgh_events
     topic: events
     type: events
@@ -347,29 +361,37 @@ sources:
     seeds: [https://www.pittsburghsymphony.org/, https://www.pittsburghsymphony.org/calendar]
     delay: 3.0
     deny: ['/(tickets?|cart|donate|give|account)/', '/pso_home/web/(cart|account)']
-    max_pages: 200
+    max_pages: 900
+    max_depth: 3
+    sitemaps: [https://awc.culturaldistrict.org/sitemaps/awc/sitemap.xml]
 
   - name: pittsburgh_opera
-    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    fetch: auto   # live, Wayback copy for pages that block scripts
     topic: culture
     type: crawl
     seeds: [https://pittsburghopera.org/]
-    max_pages: 150
+    max_pages: 1500
+    max_depth: 3
+    sitemaps: [https://pittsburghopera.org/sitemap_index.xml]
 
   - name: cultural_trust
-    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    fetch: auto   # live, Wayback copy for pages that block scripts
     topic: culture
     type: crawl
     seeds: [https://trustarts.org/]
     deny: ['/(tickets|cart|donate|account|calendar/\d{4})']
-    max_pages: 250
+    max_pages: 3000
+    max_depth: 3
+    sitemaps: [https://awc.culturaldistrict.org/sitemaps/awc/sitemap.xml]
 
   - name: carnegie_museums
-    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    fetch: auto   # live, Wayback copy for pages that block scripts
     topic: culture
     type: crawl
     seeds: [https://carnegiemuseums.org/]
-    max_pages: 150
+    max_pages: 1500
+    max_depth: 3
+    sitemaps: [https://carnegiemuseums.org/sitemap.xml]
 
   - name: heinz_history_center
     fetch: auto   # Cloudflare returns 403 to scripts beyond the homepage -> Wayback copy
@@ -377,16 +399,18 @@ sources:
     topic: culture
     type: crawl
     seeds: [https://www.heinzhistorycenter.org/]
-    max_pages: 150
+    max_pages: 900
+    max_depth: 3
 
   - name: the_frick
-    fetch: live   # live site works; Wayback fallback is too slow for a whole site
+    fetch: auto   # live, Wayback copy for pages that block scripts
     topic: culture
     type: crawl
     seeds: [https://www.thefrickpittsburgh.org/]
-    max_pages: 120
+    max_pages: 700
 
   # ---------------- Food festivals ----------------
+    max_depth: 3
   - name: food_festivals
     fetch: live   # live site works; Wayback fallback is too slow for a whole site
     topic: food
@@ -397,10 +421,11 @@ sources:
       - https://pittsburghrestaurantweek.com/
       - https://littleitalydays.com/
       - https://bananasplitfest.com/
-    max_depth: 2
-    max_pages: 40   # per seed domain
+    max_depth: 3
+    max_pages: 300
 
   # ---------------- Sports ----------------
+    sitemaps: [https://www.picklesburgh.com/sitemap.xml, https://www.pghtacofest.com/sitemap.xml, https://pittsburghrestaurantweek.com/sitemap.xml, https://littleitalydays.com/sitemap.xml, https://bananasplitfest.com/sitemap_index.xml]
   - name: pirates
     fetch: live   # live site works; Wayback fallback is too slow for a whole site
     topic: sports
@@ -410,8 +435,8 @@ sources:
       - https://www.mlb.com/pirates/history
       - https://www.mlb.com/pirates/ballpark
     allow: ['mlb\.com/pirates/(history|ballpark|community|fans|tickets/promotions|team)']
-    max_depth: 1
-    max_pages: 60
+    max_depth: 2
+    max_pages: 300
 
   - name: steelers
     fetch: live   # live site works; Wayback fallback is too slow for a whole site
@@ -422,8 +447,9 @@ sources:
       - https://www.steelers.com/history/
       - https://www.steelers.com/schedule/
     allow: ['steelers\.com/(history|schedule|team|stadium|community|fans)']
-    max_depth: 1
-    max_pages: 60
+    max_depth: 2
+    max_pages: 600
+    sitemaps: [https://www.steelers.com/sitemap-index.xml]
 
   - name: penguins
     fetch: live   # live site works; Wayback fallback is too slow for a whole site
@@ -531,4 +557,57 @@ sources:
     type: files
     fetch: auto   # alleghenycounty.us returns 403 to scripts -> Wayback copy
     urls:
+      # current budgets, proposed and adopted (the adopted operating budget is a scanned bill -> OCR)
       - https://www.alleghenycounty.us/files/assets/county/v/3/government/budget-amp-finance/proposed-operating-budgets/2026-proposed-comprehensive-fiscal-plan.pdf
+      - https://www.alleghenycounty.us/files/assets/county/v/1/government/budget-amp-finance/operating-budget/2026-operating-budget.pdf
+      - https://www.alleghenycounty.us/files/assets/county/v/1/government/budget-amp-finance/budgets-%E2%80%93-line-item-detail/2026-line-item-budget-final.pdf
+      - https://www.alleghenycounty.us/files/assets/county/v/1/government/budget-amp-finance/capital-budget/2026-capital-budget.pdf
+      - https://www.alleghenycounty.us/files/assets/county/v/1/government/budget-amp-finance/grants-special-accounts-and-agency-fund-budgets/2026-grants-sa-agencyfund-budget.pdf
+
+  - name: visitpittsburgh_listings   # every business listing, event page and blog article in its sitemap
+    fetch: live
+    topic: general
+    type: crawl
+    seeds: [https://www.visitpittsburgh.com/]
+    sitemaps:
+      - https://www.visitpittsburgh.com/sitemaps-1-sitemap.xml
+    sitemap_index_filter: 'partnerDirectory|event-default|blogDirectory'
+    sitemap_filter: 'visitpittsburgh\.com/(directory|events|blog)/[^/]+/?$'
+    allow: ['visitpittsburgh\.com/(directory|events|blog)/[^/]+/?$']
+    max_depth: 1
+    max_pages: 2800
+
+  # ---------------- Broad visitor-information sources ----------------
+  - name: libraries   # every member/branch library page of the Allegheny County Library Association
+    fetch: live
+    topic: general
+    type: crawl
+    seeds: [https://aclalibraries.org/find-a-library/]
+    sitemaps: [https://aclalibraries.org/wp-sitemap-posts-page-1.xml]
+    max_depth: 0
+    max_pages: 300
+
+  - name: carnegieart_site   # Carnegie Museum of Art website: exhibitions, gallery locations, pages
+    fetch: live
+    topic: culture
+    type: crawl
+    seeds: [https://carnegieart.org/]
+    sitemaps: [https://carnegieart.org/sitemap_index.xml]
+    sitemap_index_filter: '/(page|exhibition|location|international)-sitemap'
+    max_depth: 1
+    max_pages: 1500
+
+  - name: university_about   # about/facts pages of every university in the city
+    fetch: live
+    topic: general
+    type: crawl
+    seeds:
+      - https://www.pitt.edu/about
+      - https://www.duq.edu/about/
+      - https://www.pointpark.edu/about/index
+      - https://www.chatham.edu/about-us/
+      - https://www.carlow.edu/about/
+      - https://www.rmu.edu/about
+    allow: ['/(about|about-us|facts|history|leadership|at-a-glance|quick-facts|fast-facts|mission|traditions|rankings|campus)']
+    max_depth: 2
+    max_pages: 40

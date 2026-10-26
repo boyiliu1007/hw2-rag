@@ -4,7 +4,7 @@ present verbatim (after lowercasing and punctuation stripping) somewhere in docs
 This is an upper bound on what an extractive reader can find, and a lower bound on real
 coverage: long free-text reference answers rarely appear verbatim even when the facts do.
 
-    python scripts/coverage.py [--misses]
+    python scripts/answer_coverage.py [--misses]
 """
 import argparse
 import json

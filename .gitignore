@@ -6,3 +6,4 @@ data/raw/
 indexes/
 runs/
 logs/
+data/processed/docs.jsonl

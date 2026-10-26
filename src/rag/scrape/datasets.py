@@ -23,7 +23,7 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from .crawl import ROOT, load_sources
-from .events import MIN_DATE, event_doc
+from .events import SEASON_START, event_doc
 from .http import Fetcher
 
 OUT = ROOT / "data" / "processed" / "sources"
@@ -73,6 +73,18 @@ def _creator(r):
     return s + (f" [{role}]" if role and role.lower() not in ("artist", "") else "")
 
 
+def acquisition_method(credit_line):
+    """Gift / Bequest / Purchase from a credit line ("Bequest of Roy A. Hunt" -> Bequest)."""
+    c = credit_line.lower()
+    if "bequest" in c:
+        return "Bequest"
+    if "gift" in c or "donated" in c or "generosity" in c:
+        return "Gift"
+    if any(w in c for w in ("purchase", "fund", "acquired through", "museum acquisition")):
+        return "Purchase"
+    return ""
+
+
 def cmoa(src, fetcher):
     """The museum's 2017 open-data release (CC0); the official repo was removed, so the
     unmodified fork is used. One row per (object, creator): group rows by object id."""
@@ -98,6 +110,9 @@ def cmoa(src, fetcher):
             v = (r.get(col) or "").strip()
             if v:
                 lines.append(f"{label}: {v}")
+        method = acquisition_method(r.get("credit_line") or "")
+        if method:
+            lines.append(f"Acquisition method: {method}")
         prov = re.sub(r"\s+", " ", r.get("provenance_text") or "").strip()
         if prov:
             lines.append(f"Provenance: {prov[:800]}")
@@ -212,7 +227,7 @@ def nhl(src, fetcher, players):
     raw = _cached_get(fetcher, src["name"], "nhl_schedule.json",
                       f"https://api-web.nhle.com/v1/club-schedule-season/PIT/{src['nhl_season']}")
     for g in json.loads(raw or '{"games": []}')["games"]:
-        if g["gameDate"] < MIN_DATE:
+        if g["gameDate"] < SEASON_START:
             continue
         home = g["homeTeam"]["abbrev"] == "PIT"
         opp_t = g["awayTeam"] if home else g["homeTeam"]
@@ -286,7 +301,7 @@ def espn_schedules(src, fetcher):
             raw = _cached_get(fetcher, src["name"], f"espn_{t['sport'].replace('/', '_')}_{t['id']}_{season}.json",
                               f"{ESPN}/{t['sport']}/teams/{t['id']}/schedule?season={season}&seasontype=2")
             for e in json.loads(raw or '{"events": []}').get("events", []):
-                if e["date"][:10] < MIN_DATE:
+                if e["date"][:10] < SEASON_START:
                     continue
                 comp = e["competitions"][0]
                 me = next(c for c in comp["competitors"] if c["team"]["id"] == str(t["id"]))
@@ -336,7 +351,70 @@ def sports(src, fetcher):
     return docs
 
 
-PARSERS = {"cmoa": cmoa, "millage": millage, "sports": sports}
+# ---------------------------------------------------------------- OpenStreetMap places
+OVERPASS = "https://overpass-api.de/api/interpreter"
+
+
+def _osm_kind(t):
+    """Human-readable category from OSM tags, e.g. 'Thai restaurant', 'bakery', 'museum'."""
+    for key in ("amenity", "shop", "tourism", "leisure"):
+        if t.get(key):
+            kind = t[key].replace("_", " ")
+            if key == "shop" and kind not in ("yes",):
+                kind = f"{kind} shop" if kind in ("gift", "music", "coffee", "wine", "tea", "pet", "bicycle",
+                                                   "frame", "craft", "variety store") else kind
+            if key == "shop" and kind == "yes":
+                kind = "shop"
+            if t.get("cuisine") and key == "amenity":
+                kind = f"{t['cuisine'].replace(';', ', ').replace('_', ' ')} {kind}"
+            return kind
+    return "place"
+
+
+def osm(src, fetcher):
+    """Named shops, restaurants, cafes, bars, venues, museums, hotels and parks in Allegheny County
+    from OpenStreetMap (ODbL): one document per place."""
+    query = (f"[out:json][timeout:300];area[\"name\"=\"{src['area']}\"][\"admin_level\"=\"{src['admin_level']}\"]->.a;("
+             + "".join(f'nwr["{k}"~"{v}"]["name"](area.a);' for k, v in src["filters"].items())
+             + ");out tags center;")
+    p = RAW / src["name"] / "overpass.json"
+    if not p.exists():
+        r = fetcher.s.post(OVERPASS, data={"data": query}, timeout=360,
+                           headers={"User-Agent": "CMU-11711-HW2-RAG/0.1 (https://github.com/boyiliu1007/hw2-rag)"})
+        r.raise_for_status()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(r.text)
+    docs, seen = [], set()
+    for e in json.loads(p.read_text())["elements"]:
+        t = e.get("tags", {})
+        name = t.get("name", "").strip()
+        if not name:
+            continue
+        addr = " ".join(filter(None, (t.get("addr:housenumber"), t.get("addr:street"))))
+        place = ", ".join(filter(None, (t.get("addr:suburb") or t.get("addr:neighbourhood"),
+                                        t.get("addr:city"), "PA" if t.get("addr:city") else "",
+                                        t.get("addr:postcode"))))
+        where = ", ".join(filter(None, (addr, place)))
+        key = (name.lower(), where.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        kind = _osm_kind(t)
+        article = "an" if kind[:1].lower() in "aeiou" else "a"
+        lead = f"{name} is {article} {kind}" + (f" at {where}" if where else " in Allegheny County, Pennsylvania") + "."
+        fields = [("Name", name), ("Type", kind), ("Address", where), ("Brand", t.get("brand")),
+                  ("Opening hours", t.get("opening_hours")), ("Phone", t.get("phone") or t.get("contact:phone")),
+                  ("Website", t.get("website") or t.get("contact:website")),
+                  ("Description", t.get("description")), ("Operator", t.get("operator")),
+                  ("Wheelchair accessible", t.get("wheelchair")),
+                  ("Outdoor seating", t.get("outdoor_seating")), ("Takeaway", t.get("takeaway"))]
+        text = lead + "\n" + "\n".join(f"{k}: {v}" for k, v in fields if v)
+        docs.append({"doc_id": f"osm-{e['type']}{e['id']}", "url": f"https://www.openstreetmap.org/{e['type']}/{e['id']}",
+                     "title": f"{name} ({kind})", "topic": src["topic"], "source": src["name"], "text": text})
+    return docs
+
+
+PARSERS = {"cmoa": cmoa, "millage": millage, "sports": sports, "osm": osm}
 
 
 def main():

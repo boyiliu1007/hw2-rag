@@ -144,10 +144,6 @@ def sitemap_urls(src, fetcher):
 
 
 def crawl_source(src, fetcher, seen):
-    if src.get("sitemaps"):
-        extra = sitemap_urls(src, fetcher)
-        print(f"  {len(extra)} seeds from sitemaps")
-        src = {**src, "seeds": list(src["seeds"]) + extra}
     allow = [re.compile(p) for p in src.get("allow", [])]
     deny = [re.compile(p) for p in src.get("deny", [])]
     seed_domains = {_domain(s) for s in src["seeds"]}
@@ -164,6 +160,10 @@ def crawl_source(src, fetcher, seen):
             return any(a.search(u) for a in allow)
         return _domain(u) in seed_domains
 
+    if src.get("sitemaps"):  # sitemap URLs obey the same domain/allow/deny rules as links
+        extra = [u for u in sitemap_urls(src, fetcher) if ok(u)]
+        print(f"  {len(extra)} seeds from sitemaps")
+        src = {**src, "seeds": list(src["seeds"]) + extra}
     # max_pages is per seed domain so multi-site sources (food festivals) share fairly
     per_domain = {d: 0 for d in seed_domains}
     queue = deque((normalize_url(s), 0) for s in src["seeds"])

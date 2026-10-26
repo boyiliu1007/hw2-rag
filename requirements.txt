@@ -6,3 +6,17 @@ pdfplumber>=0.11
 pypdf>=4.0
 pyyaml>=6.0
 tqdm>=4.66
+
+# retrieval
+bm25s>=0.2
+PyStemmer>=2.2
+numpy>=1.26
+faiss-cpu>=1.8
+sentence-transformers>=3.0
+pypdfium2>=4.30      # OCR fallback for scanned PDFs (also needs the tesseract binary)
+
+# reader
+vllm>=0.6
+transformers>=4.51
+torch>=2.4
+scipy>=1.11
