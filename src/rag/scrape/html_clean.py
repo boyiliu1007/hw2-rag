@@ -4,6 +4,7 @@ Output uses blank lines between blocks so paragraph-based chunking downstream
 can split on them. Headings are prefixed with '#' marks; tables become
 "Header: value | Header: value" lines so each row survives as one unit.
 """
+import html
 import json
 import re
 
@@ -101,6 +102,22 @@ def fix_mojibake(text):
         except (UnicodeEncodeError, UnicodeDecodeError):
             return m.group(0)
     return MOJIBAKE.sub(repl, text)
+
+
+# Common inline/block tags with well-formed attributes only, so text like "a <b and c> d" survives
+HTML_TAG = re.compile(r"</?(?:p|br|div|span|a|b|i|u|em|strong|small|sup|sub|font|ul|ol|li|h[1-6]|img|hr)"
+                      r"(?:\s+[\w:-]+\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+))*\s*/?>", re.I)
+
+
+def unescape_html(text):
+    """Decode HTML entities and drop the tags that decoding exposes. Some feeds escape twice
+    ('&amp;rsquo;', '&lt;p&gt;'), so one pass of an HTML parser leaves entities or tags behind."""
+    for _ in range(3):
+        decoded = html.unescape(text)
+        if decoded == text:
+            break
+        text = decoded
+    return HTML_TAG.sub(" ", text)
 
 
 def normalize_ws(text):

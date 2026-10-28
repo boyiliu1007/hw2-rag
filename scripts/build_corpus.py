@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.rag.scrape.crawl import _domain, load_sources, normalize_url  # noqa: E402
 from src.rag.scrape.events import MIN_DATE, _ld_names, _ld_place, event_doc  # noqa: E402
-from src.rag.scrape.html_clean import extract_jsonld_events, html_to_text  # noqa: E402
+from src.rag.scrape.html_clean import extract_jsonld_events, html_to_text, unescape_html  # noqa: E402
 from src.rag.scrape.pdf_extract import pdf_to_text  # noqa: E402
 from src.rag.scrape.schedules import parse_schedule  # noqa: E402
 
@@ -34,6 +34,10 @@ RAW = ROOT / "data" / "raw"
 PROC = ROOT / "data" / "processed"
 MIN_CHARS = 200          # drop near-empty pages (JS shells, redirects, error pages)
 BOILER_FRAC = 0.3        # per-source line frequency above which a line is site chrome
+# binary files (xlsx/docx/images) served or saved as HTML decode to control/replacement chars;
+# real pages with a few mis-encoded quotes stay well under 1%
+BINARY_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f�]")
+MAX_BINARY_FRAC = 0.05
 # Sources only available as old archive snapshots: say so in the text so a reader does not take
 # their dates for 2026 ones.
 STALE_NOTE = {"citypaper_events": "[Archived Pittsburgh City Paper listing from 2025 (Internet Archive); "
@@ -210,6 +214,8 @@ def main():
     if carried:
         print(f"carried over from previous {args.out.name}: {dict(carried)}")
     for d in docs:
+        # entities/tags left by double-escaped sources (also fixes carried-over and feed docs)
+        d["title"], d["text"] = unescape_html(d["title"] or ""), unescape_html(d["text"])
         if d["source"] in STALE_NOTE and not d["text"].startswith(STALE_NOTE[d["source"]]):
             d["text"] = f"{STALE_NOTE[d['source']]}\n{d['text']}"
     # one-record-per-document sources (events, places, artworks, games) are short by design
@@ -219,6 +225,9 @@ def main():
         is_record = "\nEvent: " in d["text"] or d["source"] in record_sources
         if len(d["text"]) < (40 if is_record else MIN_CHARS):
             dropped["short"] += 1
+            continue
+        if len(BINARY_CHARS.findall(d["text"])) > MAX_BINARY_FRAC * len(d["text"]):
+            dropped["binary"] += 1
             continue
         k = norm_key(d["text"])
         if k in seen or d["doc_id"] in seen:  # same event cross-posted by several CMU groups

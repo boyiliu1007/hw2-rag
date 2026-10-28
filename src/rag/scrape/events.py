@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from .crawl import ROOT, load_sources
-from .html_clean import extract_jsonld_events, normalize_ws
+from .html_clean import extract_jsonld_events, normalize_ws, unescape_html
 from .http import Fetcher
 
 OUT = ROOT / "data" / "processed" / "sources"
@@ -34,7 +34,9 @@ SEASON_START = "2026-07-01"
 def strip_html(s):
     if not s:
         return ""
-    return normalize_ws(BeautifulSoup(str(s), "lxml").get_text(" "))
+    # some JSON-LD descriptions are entity-escaped HTML with literal "\n" sequences
+    s = unescape_html(str(s).replace("\\n", "\n").replace("\\t", " "))
+    return normalize_ws(BeautifulSoup(s, "lxml").get_text(" "))
 
 
 def fmt_dt(iso):
@@ -106,12 +108,18 @@ def _ld_place(loc):
     return loc.get("name", ""), addr
 
 
+# WordPress "The Events Calendar" emits the bare type name ("performer": "Organization")
+LD_TYPE_NAMES = {"Organization", "Person", "PerformingGroup", "MusicGroup", "TheaterGroup",
+                 "DanceGroup", "Thing", "Place"}
+
+
 def _ld_names(x):
     if isinstance(x, list):
         return ", ".join(filter(None, (_ld_names(i) for i in x)))
     if isinstance(x, dict):
         return x.get("name", "")
-    return str(x or "")
+    x = str(x or "").strip()
+    return "" if x in LD_TYPE_NAMES else x
 
 
 def pittsburgh_events(src, fetcher):

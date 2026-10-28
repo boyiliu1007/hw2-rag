@@ -1,7 +1,9 @@
 # 11-711 HW2 — Pittsburgh/CMU RAG
 
-Retrieval-augmented QA over a self-collected knowledge resource about Pittsburgh and CMU.
-Status: **data collection pipeline done**; chunking / retrieval / reader / evaluation to follow.
+Retrieval-augmented QA over a self-collected knowledge resource about Pittsburgh and CMU:
+BM25 + bge-base dense retrieval fused with RRF, a bge-reranker-v2-m3 cross-encoder, and a
+Qwen3-30B-A3B-Instruct-2507 reader. The submitted test outputs are in `system_outputs/`
+(see [Submitted test outputs](#submitted-test-outputs)).
 
 ## Setup
 
